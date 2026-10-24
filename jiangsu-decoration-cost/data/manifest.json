@@ -1,0 +1,86 @@
+{
+  "name": "jiangsu-decoration-cost",
+  "display_name": "江苏装饰清单定额套项",
+  "version": "1.2.0",
+  "updated": "2026-10-24",
+  "boq": {
+    "file": "boq_2024_jiangsu.csv",
+    "count": 26,
+    "standard": "GB/T 50854-2024",
+    "region": "江苏省",
+    "effective": "2026-06-01",
+    "scope": "26条已核对种子库，可直接用于本项目成果；不是全量附录"
+  },
+  "quota": {
+    "file": "quota_2026_jiangsu_seed.csv",
+    "count": 59,
+    "standard": "江苏省建筑与装饰工程消耗量（2026）",
+    "document": "苏建价〔2026〕76号",
+    "effective": "2026-06-01",
+    "scope": "59条已核对子目，可直接用于成果；不是全量3115条",
+    "source_url": "http://jsszfhcxjst.jiangsu.gov.cn/art/2026/5/19/art_8639_11773294.html"
+  },
+  "mapping_examples": {
+    "file": "mapping_examples.csv",
+    "count": 96
+  },
+  "dxf_example": {
+    "file": "example_dxf_text.csv",
+    "count": 206
+  },
+  "quota_index": {
+    "file": "quota_2026_jiangsu_index.csv",
+    "count": 3115,
+    "verified": 59,
+    "auto_extracted": 3056,
+    "columns": [
+      "序号",
+      "定额编号",
+      "定额子目名称",
+      "计量单位",
+      "章",
+      "节",
+      "页码",
+      "工作内容",
+      "名称质量",
+      "数据来源",
+      "备注"
+    ],
+    "page_type": "PDF物理页码",
+    "scope": "全量编号查询索引；3056条名称为自动提取，正式使用前按页码回查原文",
+    "builder": "scripts/build_quota_index.py",
+    "source_url": "http://jsszfhcxjst.jiangsu.gov.cn/art/2026/5/19/art_8639_11773294.html"
+  },
+  "boq_index": {
+    "file": "boq_2024_jiangsu_index.csv",
+    "count": 477,
+    "national": 472,
+    "jiangsu_additions": 5,
+    "verified": 26,
+    "national_extracted": 446,
+    "columns": [
+      "序号",
+      "清单编码",
+      "清单名称",
+      "计量单位",
+      "附录",
+      "节",
+      "表号",
+      "项目特征",
+      "工程量计算规则",
+      "工作内容",
+      "名称质量",
+      "数据来源",
+      "江苏差异",
+      "备注"
+    ],
+    "standard": "GB/T 50854-2024",
+    "region": "江苏省",
+    "effective": "2026-06-01",
+    "scope": "全量清单编码索引；472条国标+5条江苏增补。26条与项目种子库核对一致，其余为国标文本提取，使用前按项目特征复核",
+    "builder": "scripts/build_boq_index.py",
+    "source_url": "https://www.xuebim.cn/count/50854.html",
+    "official_pdf_url": "https://www.mohurd.gov.cn/gongkai/zc/wjk/art/2024/art_c713a0ba3ee241de91d00ba70a031312.html",
+    "jiangsu_notice_url": "https://jsszfhcxjst.jiangsu.gov.cn/art/2025/12/22/art_49384_11697289.html"
+  }
+}
