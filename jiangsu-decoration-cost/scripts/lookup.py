@@ -3,14 +3,17 @@
 """Search the bundled Jiangsu BOQ / quota / mapping data.
 
 Examples:
+  python3 scripts/lookup.py boq 屋面
+  python3 scripts/lookup.py boq 011101001 --json
   python3 scripts/lookup.py quota 保温
   python3 scripts/lookup.py quota --chapter 第十章 --unit m3
-  python3 scripts/lookup.py index 保温
-  python3 scripts/lookup.py index 干挂 --chapter 第十三章
-  python3 scripts/lookup.py boq 屋面
-  python3 scripts/lookup.py boqindex 屋面
-  python3 scripts/lookup.py boqindex 011101001 --json
+  python3 scripts/lookup.py quota 干挂 --chapter 第十三章
+  python3 scripts/lookup.py quota --status 待核对
   python3 scripts/lookup.py mapping 干挂
+
+boq 和 quota 分别查询唯一的清单主表和定额主表（477 条 / 3133 条）；
+boqindex、index 是兼容旧文档的别名，指向同一张主表。
+--status 可按核对状态过滤：已核对 / 待核对。
 
 The script prints a compact Markdown table, which keeps the result readable in
 a terminal and directly usable in notes.  Use --json for machine-readable data.
@@ -55,7 +58,10 @@ def normalize_unit(value: str) -> str:
 
 
 def match(value: str, query: str) -> bool:
-    return query.lower() in (value or "").lower()
+    # 第十六章正文用“其他零星工程”，目录/口语常写“其它”，查询时视为同词。
+    value = (value or "").replace("其它", "其他")
+    query = (query or "").replace("其它", "其他")
+    return query.lower() in value.lower()
 
 
 def print_table(headers: list[str], rows: list[dict[str, str]], limit: int) -> None:
@@ -77,29 +83,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "kind",
-        choices=["boq", "boqindex", "quota", "index", "mapping"],
-        help="查询哪张表：boq=26条已核对清单种子库，boqindex=477条全量清单索引，quota=59条已核对定额种子库，index=3115条定额全量索引",
+        choices=["boq", "quota", "mapping", "boqindex", "index"],
+        help="查询哪张表：boq=477条清单主表，quota=3133条定额主表，mapping=套用示例；boqindex/index 为等价的旧名",
     )
     parser.add_argument("query", nargs="?", default="", help="关键词（不区分大小写，匹配所有字段）")
     parser.add_argument("--chapter", default="", help="按章节过滤，如 第十章 / 13.4 / 附录K / K.1")
     parser.add_argument("--unit", default="", help="按计量单位过滤，如 m3 / 10m²")
-    parser.add_argument("--quality", default="", help="index/boqindex 通用：按名称质量精确过滤，如 已核对 / 自动提取 / 国标提取 / 江苏增补（已核对）")
+    parser.add_argument("--status", "--quality", dest="status", default="", help="按核对状态过滤：已核对 / 待核对")
     parser.add_argument("--limit", type=int, default=30)
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     args = parser.parse_args()
 
-    if args.kind == "boq":
+    if args.kind in ("boq", "boqindex"):
         path = BASE / "boq_2024_jiangsu.csv"
-        headers = ["清单编码", "清单名称", "计量单位"]
-    elif args.kind == "boqindex":
-        path = BASE / "boq_2024_jiangsu_index.csv"
-        headers = ["清单编码", "清单名称", "计量单位", "附录", "节", "名称质量", "江苏差异"]
-    elif args.kind == "quota":
-        path = BASE / "quota_2026_jiangsu_seed.csv"
-        headers = ["定额编号", "定额子目名称", "计量单位", "章", "节"]
-    elif args.kind == "index":
-        path = BASE / "quota_2026_jiangsu_index.csv"
-        headers = ["定额编号", "定额子目名称", "计量单位", "章", "节", "页码"]
+        headers = ["清单编码", "清单名称", "计量单位", "附录", "节", "核对状态", "原文页码", "江苏差异"]
+    elif args.kind in ("quota", "index"):
+        path = BASE / "quota_2026_jiangsu.csv"
+        headers = ["定额编号", "定额子目名称", "计量单位", "章", "节", "页码", "核对状态"]
     else:
         path = BASE / "mapping_examples.csv"
         headers = ["序号", "做法编号", "做法层序", "图纸做法条文", "清单编码", "定额编号", "套用说明 / 备注"]
@@ -128,7 +128,7 @@ def main() -> int:
             row.get("计量单位", "") + row.get("定额计量单位", "")
         ):
             continue
-        if args.quality and row.get("名称质量", "").strip() != args.quality:
+        if args.status and row.get("核对状态", "").strip() != args.status:
             continue
         result.append(row)
 

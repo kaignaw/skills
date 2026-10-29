@@ -1,63 +1,17 @@
 {
   "name": "jiangsu-decoration-cost",
   "display_name": "江苏装饰清单定额套项",
-  "version": "1.2.0",
-  "updated": "2026-10-24",
+  "version": "2.1.0",
+  "updated": "2026-10-29",
+  "data_model": "单一权威主表 + 逐行核对状态/证据；不再区分种子库与全量索引",
   "boq": {
     "file": "boq_2024_jiangsu.csv",
-    "count": 26,
-    "standard": "GB/T 50854-2024",
-    "region": "江苏省",
-    "effective": "2026-06-01",
-    "scope": "26条已核对种子库，可直接用于本项目成果；不是全量附录"
-  },
-  "quota": {
-    "file": "quota_2026_jiangsu_seed.csv",
-    "count": 59,
-    "standard": "江苏省建筑与装饰工程消耗量（2026）",
-    "document": "苏建价〔2026〕76号",
-    "effective": "2026-06-01",
-    "scope": "59条已核对子目，可直接用于成果；不是全量3115条",
-    "source_url": "http://jsszfhcxjst.jiangsu.gov.cn/art/2026/5/19/art_8639_11773294.html"
-  },
-  "mapping_examples": {
-    "file": "mapping_examples.csv",
-    "count": 96
-  },
-  "dxf_example": {
-    "file": "example_dxf_text.csv",
-    "count": 206
-  },
-  "quota_index": {
-    "file": "quota_2026_jiangsu_index.csv",
-    "count": 3115,
-    "verified": 59,
-    "auto_extracted": 3056,
-    "columns": [
-      "序号",
-      "定额编号",
-      "定额子目名称",
-      "计量单位",
-      "章",
-      "节",
-      "页码",
-      "工作内容",
-      "名称质量",
-      "数据来源",
-      "备注"
-    ],
-    "page_type": "PDF物理页码",
-    "scope": "全量编号查询索引；3056条名称为自动提取，正式使用前按页码回查原文",
-    "builder": "scripts/build_quota_index.py",
-    "source_url": "http://jsszfhcxjst.jiangsu.gov.cn/art/2026/5/19/art_8639_11773294.html"
-  },
-  "boq_index": {
-    "file": "boq_2024_jiangsu_index.csv",
     "count": 477,
     "national": 472,
     "jiangsu_additions": 5,
-    "verified": 26,
-    "national_extracted": 446,
+    "verified": 477,
+    "pending": 0,
+    "coverage": 1.0,
     "columns": [
       "序号",
       "清单编码",
@@ -69,18 +23,114 @@
       "项目特征",
       "工程量计算规则",
       "工作内容",
-      "名称质量",
       "数据来源",
       "江苏差异",
+      "核对状态",
+      "核对方式",
+      "核对人",
+      "核对日期",
+      "核对批次",
+      "原文页码",
+      "原文摘录",
+      "证据ID",
       "备注"
     ],
     "standard": "GB/T 50854-2024",
     "region": "江苏省",
     "effective": "2026-06-01",
-    "scope": "全量清单编码索引；472条国标+5条江苏增补。26条与项目种子库核对一致，其余为国标文本提取，使用前按项目特征复核",
+    "scope": "全量清单主表，477 条全部已核对：472 条按官方 PDF OCR 逐行比对，5 条江苏增补按公告附件核对",
     "builder": "scripts/build_boq_index.py",
     "source_url": "https://www.xuebim.cn/count/50854.html",
     "official_pdf_url": "https://www.mohurd.gov.cn/gongkai/zc/wjk/art/2024/art_c713a0ba3ee241de91d00ba70a031312.html",
-    "jiangsu_notice_url": "https://jsszfhcxjst.jiangsu.gov.cn/art/2025/12/22/art_49384_11697289.html"
-  }
+    "official_pdf_sha256": "cee06719fcfd23fee3e007c0cd65ae751c3edc4a72bb90006c4ba88703bbf708",
+    "jiangsu_notice_url": "https://jsszfhcxjst.jiangsu.gov.cn/art/2025/12/22/art_49384_11697289.html",
+    "jiangsu_notice_sha256": "c0fdbaa4d582962ce92aa7a8e61de94a150b8414554fb60bd06febce7ebb624e"
+  },
+  "quota": {
+    "file": "quota_2026_jiangsu.csv",
+    "count": 3133,
+    "verified": 3133,
+    "pending": 0,
+    "coverage": 1.0,
+    "columns": [
+      "序号",
+      "定额编号",
+      "定额子目名称",
+      "计量单位",
+      "章",
+      "节",
+      "页码",
+      "工作内容",
+      "数据来源",
+      "核对状态",
+      "核对方式",
+      "核对人",
+      "核对日期",
+      "核对批次",
+      "原文摘录",
+      "证据ID",
+      "备注"
+    ],
+    "standard": "江苏省建筑与装饰工程消耗量（2026）",
+    "document": "苏建价〔2026〕76号",
+    "effective": "2026-06-01",
+    "page_type": "PDF物理页码",
+    "scope": "全量定额主表；3133 条全部已核对：77 条为历史人工复核（第二十章超高降效 18 条 + 59 条项目复核），3056 条按官方 PDF 表格线逐列还原表头比对（其中 463 条按表头补级改名，明细见 data/quota_name_review.csv）",
+    "builder": "scripts/build_quota_index.py",
+    "source_url": "http://jsszfhcxjst.jiangsu.gov.cn/art/2026/5/19/art_8639_11773294.html",
+    "official_pdf_sha256": "da0d02eeb9f2f8fd4e8434c392ab449ac9cc2c0eff522d3cdf93282357ff61dc"
+  },
+  "verification_evidence": {
+    "file": "verification_evidence.csv",
+    "count": 3610,
+    "columns": [
+      "证据ID",
+      "数据类别",
+      "条目编码",
+      "来源名称",
+      "来源版本",
+      "来源URL",
+      "来源SHA256",
+      "物理页码",
+      "原文摘录",
+      "证据文件",
+      "核对人",
+      "核对日期",
+      "备注"
+    ],
+    "scope": "每个已核对条目一条证据；清单 477 条（472 条官方 PDF OCR 逐行比对 + 5 条公告附件），定额 3133 条（77 条历史人工 + 3056 条 PDF 表格线逐列比对）。"
+  },
+  "mapping_examples": {
+    "file": "mapping_examples.csv",
+    "count": 96
+  },
+  "dxf_example": {
+    "file": "example_dxf_text.csv",
+    "count": 206
+  },
+  "legacy_fixtures": {
+    "directory": "../../tests/fixtures",
+    "files": [
+      "boq_2024_jiangsu_legacy_seed.csv",
+      "quota_2026_jiangsu_legacy_seed.csv"
+    ],
+    "scope": "历史 26/59 条种子样本，仅作回归对照，不作为运行时数据源"
+  },
+  "audit_scripts": {
+    "coverage": "scripts/audit_coverage.py",
+    "review_queue": "scripts/build_review_queue.py",
+    "boq_ocr": "scripts/verify_boq_from_ocr.py",
+    "quota_pdf": "scripts/verify_quota_from_pdf.py"
+  },
+  "agent_entrypoints": {
+    "preflight": "python3 scripts/preflight.py",
+    "lookup_boq": "python3 scripts/lookup.py boq 屋面",
+    "lookup_quota": "python3 scripts/lookup.py quota 保温 --chapter 第十章",
+    "print_mapping_header": "python3 scripts/validate_mapping.py --print-header",
+    "validate_mapping": "python3 scripts/validate_mapping.py work/清单定额套用.csv",
+    "build_xlsx": "python3 scripts/build_xlsx.py --mapping work/清单定额套用.csv --dxf work/dxf/dxf_text.csv --notes work/编制依据.md -o 成果/装饰工程清单与定额套用表.xlsx",
+    "audit_coverage": "python3 scripts/audit_coverage.py"
+  },
+  "references_index": "references/00-index.md",
+  "mapping_template": "assets/mapping_template.csv"
 }

@@ -10,24 +10,31 @@ OpenCode skills collection.
 
 内置数据：
 
-- 26 条已核对清单种子库
-- 477 条 2024 江苏清单全量索引（GB/T 50854-2024 的 472 条 + 江苏〔2025〕第 12 号公告增补的 5 条）
-- 59 条已核对定额种子库
-- 3115 条 2026 江苏消耗量全量索引
-- 96 行清单定额套用示例
+- 477 条 2024 江苏清单主表（GB/T 50854-2024 的 472 条 + 江苏〔2025〕第 12 号公告增补的 5 条；477 条已核对）
+- 3133 条 2026 江苏消耗量定额主表（3133 条已核对：77 条历史人工复核 + 3056 条官方 PDF 表格线逐列比对）
+- `verification_evidence.csv` 核对证据表（3610 条 = 清单 477 + 定额 3133，每个已核对条目一个证据ID）
+- 96 行清单定额套用示例；`assets/mapping_template.csv` 20 列空模板
 
 主要脚本：
 
 ```bash
-# 查询清单编码
-python3 jiangsu-decoration-cost/scripts/lookup.py boqindex 屋面
-python3 jiangsu-decoration-cost/scripts/lookup.py boqindex 011101001 --json
+# 环境与数据自检（先跑这个）
+python3 jiangsu-decoration-cost/scripts/preflight.py
+
+# 查询清单编码（带核对状态）
+python3 jiangsu-decoration-cost/scripts/lookup.py boq 屋面
+python3 jiangsu-decoration-cost/scripts/lookup.py boq 011101001 --json
 
 # 查询定额编号
 python3 jiangsu-decoration-cost/scripts/lookup.py quota 保温
-python3 jiangsu-decoration-cost/scripts/lookup.py index 保温
+python3 jiangsu-decoration-cost/scripts/lookup.py quota --status 待核对 --chapter 第十三章
 
-# 校验并生成 xlsx
+# 覆盖率审计与待核对队列
+python3 jiangsu-decoration-cost/scripts/audit_coverage.py
+python3 jiangsu-decoration-cost/scripts/build_review_queue.py --out work/review_queue.csv
+
+# 校验并生成 xlsx（--print-header 打印标准 20 列表头）
+python3 jiangsu-decoration-cost/scripts/validate_mapping.py --print-header
 python3 jiangsu-decoration-cost/scripts/validate_mapping.py work/清单定额套用.csv
 python3 jiangsu-decoration-cost/scripts/build_xlsx.py \
   --mapping work/清单定额套用.csv \

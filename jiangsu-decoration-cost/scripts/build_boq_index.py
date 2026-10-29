@@ -7,8 +7,15 @@ scanned image PDF; this parser uses the HTML for the table structure and keeps
 the official PDF/OCR as a cross-check. Jiangsu additions are transcribed from
 the official attachment of 苏建价〔2025〕第12号 (2025-12-19).
 
+The output is the single authoritative BOQ master table (477 rows).  Rows that
+already carry verification data in the existing master table are preserved by
+清单编码, so rebuilding the table never silently drops a reviewed row back to
+"待核对".  A row without preserved evidence is written as "待核对" and must be
+checked against the official PDF page before formal use.
+
 Usage:
-  python3 scripts/build_boq_index.py --html 50854.html --out data/boq_2024_jiangsu_index.csv
+  python3 scripts/build_boq_index.py --html 50854.html
+  python3 scripts/build_boq_index.py --html 50854.html --out /tmp/boq.csv --no-preserve
 """
 
 from __future__ import annotations
@@ -23,8 +30,18 @@ from bs4 import BeautifulSoup
 
 FIELDS = [
     "序号", "清单编码", "清单名称", "计量单位", "附录", "节", "表号",
-    "项目特征", "工程量计算规则", "工作内容", "名称质量", "数据来源", "江苏差异", "备注",
+    "项目特征", "工程量计算规则", "工作内容", "数据来源", "江苏差异",
+    "核对状态", "核对方式", "核对人", "核对日期", "核对批次",
+    "原文页码", "原文摘录", "证据ID", "备注",
 ]
+
+VERIFY_FIELDS = [
+    "核对状态", "核对方式", "核对人", "核对日期", "核对批次",
+    "原文页码", "原文摘录", "证据ID",
+]
+
+AUDIT_BATCH = "audit-2026-10-29"
+AUDIT_DATE = "2026-10-29"
 
 # 江苏省住建厅〔2025〕第12号公告附件1、2：国标未列、江苏增补的清单项。
 JIANGSU_ADDITIONS = [
@@ -34,7 +51,6 @@ JIANGSU_ADDITIONS = [
         "项目特征": "建筑垃圾类别",
         "工程量计算规则": "按建筑垃圾质量计算",
         "工作内容": "1.装卸；2.外运；3.消纳",
-        "名称质量": "江苏增补（已核对）",
         "数据来源": "江苏省住建厅〔2025〕第12号公告 附件1",
         "江苏差异": "江苏增补；GB/T 50854-2024 无此清单编码",
         "备注": "仅指工程垃圾、拆除垃圾、装修垃圾；工程渣土、工程泥浆按余方弃置/泥浆外运列项。",
@@ -45,7 +61,6 @@ JIANGSU_ADDITIONS = [
         "项目特征": "",
         "工程量计算规则": "",
         "工作内容": "招标文件或施工合同有质量目标时，以达到质量目标为费用计列条件的施工措施投入。",
-        "名称质量": "江苏增补（已核对）",
         "数据来源": "江苏省住建厅〔2025〕第12号公告 附件2",
         "江苏差异": "江苏增补；GB/T 50854-2024 无此清单编码",
         "备注": "措施项目按项计取；江苏公告增补。",
@@ -56,7 +71,6 @@ JIANGSU_ADDITIONS = [
         "项目特征": "",
         "工程量计算规则": "",
         "工作内容": "施工现场对人员进行实名制管理，包括封闭式施工现场的进出场门禁系统和生物识别电子卡设备，非封闭式施工现场的移动定位、电子围栏考勤管理设备，现场显示屏，实名制系统使用以及管理等。",
-        "名称质量": "江苏增补（已核对）",
         "数据来源": "江苏省住建厅〔2025〕第12号公告 附件2",
         "江苏差异": "江苏增补；GB/T 50854-2024 无此清单编码",
         "备注": "措施项目按项计取；江苏公告增补。",
@@ -67,7 +81,6 @@ JIANGSU_ADDITIONS = [
         "项目特征": "",
         "工程量计算规则": "",
         "工作内容": "1.城镇老旧小区改造项目、历史文化街区改造项目施工时，由于施工场地非封闭式，施工受行车、行人的干扰导致的人工、机械降效以及为了行车、行人安全发生的防护设施（不包括防护通道）与疏导人员。2.城镇老旧小区改造项目、历史文化街区改造项目施工时，为了不干扰住户的正常作息时间，每天的施工时长缩短而增加的施工降效。",
-        "名称质量": "江苏增补（已核对）",
         "数据来源": "江苏省住建厅〔2025〕第12号公告 附件2",
         "江苏差异": "江苏增补；GB/T 50854-2024 无此清单编码",
         "备注": "城镇老旧小区改造、历史文化街区改造发生时可计列；其他城市更新改造项目确需发生时可参照。",
@@ -78,15 +91,14 @@ JIANGSU_ADDITIONS = [
         "项目特征": "",
         "工程量计算规则": "",
         "工作内容": "城镇老旧小区改造项目、历史文化街区改造项目施工时，由承包人负责的监管协调违建拆除及恢复工作。",
-        "名称质量": "江苏增补（已核对）",
         "数据来源": "江苏省住建厅〔2025〕第12号公告 附件2",
         "江苏差异": "江苏增补；GB/T 50854-2024 无此清单编码",
         "备注": "城镇老旧小区改造、历史文化街区改造发生时可计列；其他城市更新改造项目确需发生时可参照。",
     },
 ]
 
-SEED_CODES = set()
-SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "boq_2024_jiangsu.csv"
+# 网页全文的附录 H 标题缺失（只有“附录 H”），用官方 PDF 目录补全。
+APPENDIX_TITLES = {"H": "门窗工程"}
 
 
 def norm(value: str) -> str:
@@ -272,15 +284,46 @@ def format_appendix(value: str) -> str:
     match = re.match(r"附录([A-R])(.*)", text)
     if not match:
         return text
-    return f"附录{match.group(1)} {match.group(2)}".strip()
+    title = match.group(2).strip() or APPENDIX_TITLES.get(match.group(1), "")
+    return f"附录{match.group(1)} {title}".strip()
 
 
 def format_section(value: str) -> str:
     text = compact(value)
+    # 网页 H.2 标题带一个竖线伪字符“金属╱门”，官方 PDF 为“金属门”。
+    text = text.replace("╱", "").replace("／", "")
     match = re.match(r"([A-R])\.(\d+)(.*)", text)
     if not match:
         return text
     return f"{match.group(1)}.{match.group(2)} {match.group(3)}".strip()
+
+
+def repair_section(section: str, appendix: str, table_no: str, caption: str) -> str:
+    """用表号纠正网页缺失/串位的节标题。
+
+    网页全文缺少 H.1 的 h3 标题，并把 010801001～010801006 归到了上一节
+    “G.4 其他规定”。表号 H.1.1 和表题“木门”仍可靠，因此按表号回填节标题。
+    """
+    section = section.replace("╱", "").replace("／", "")
+    table = re.search(r"表([A-R])\.(\d+)\.\d+", compact(table_no))
+    if not table:
+        return section
+    letter, number = table.group(1), table.group(2)
+    expected = f"{letter}.{number}"
+    if section.startswith(expected + " ") or section == expected:
+        if appendix.startswith(f"附录{letter}"):
+            return section
+
+    title = ""
+    caption_match = re.match(
+        rf"表{re.escape(letter)}\.{re.escape(number)}\.\d+(.*)", compact(caption)
+    )
+    if caption_match:
+        title = re.split(r"[（(]编码", caption_match.group(1), maxsplit=1)[0].strip()
+    if not title:
+        current = re.match(r"^[A-R]\.\d+\s*(.*)$", section)
+        title = current.group(1).strip() if current else ""
+    return f"{expected} {title}".strip()
 
 
 def table_number(value: str) -> str:
@@ -309,20 +352,22 @@ def build(html_path: Path) -> list[dict[str, str]]:
     national = parse_national(html_path)
     out: list[dict[str, str]] = []
     for record in national:
+        caption = record["表号"]
         record["附录"] = format_appendix(record["附录"])
         record["节"] = format_section(record["节"])
-        record["表号"] = table_number(record["表号"])
+        record["表号"] = table_number(caption)
+        record["节"] = repair_section(record["节"], record["附录"], record["表号"], caption)
         record["项目特征"] = clean_lines(record["项目特征"])
         record["工程量计算规则"] = clean_rule(record["工程量计算规则"])
         record["工作内容"] = clean_lines(record["工作内容"])
         unit, note = normalize_units(record)
         record["计量单位"] = unit
-        record["名称质量"] = "已核对" if record["清单编码"] in SEED_CODES else "国标提取"
         record["数据来源"] = "GB/T 50854-2024"
         record["江苏差异"] = ""
         record["备注"] = note
-        if record["清单编码"] in SEED_CODES:
-            record["备注"] = (record["备注"] + "；" if record["备注"] else "") + "与项目26条种子库名称、单位核对一致。"
+        for key in VERIFY_FIELDS:
+            record[key] = ""
+        record["核对状态"] = "待核对"
         if record["清单编码"].startswith("0116"):
             record["江苏差异"] = "江苏公告：高层/超高层施工措施费不单独列项；另增补011601016-011601019。"
         out.append(record)
@@ -331,43 +376,91 @@ def build(html_path: Path) -> list[dict[str, str]]:
     for record in JIANGSU_ADDITIONS:
         if record["清单编码"] in existing:
             raise SystemExit(f"江苏增补编码与国标重复：{record['清单编码']}")
-        out.append(dict(record))
+        addition = dict(record)
+        for key in VERIFY_FIELDS:
+            addition[key] = ""
+        addition.update(
+            {
+                "核对状态": "已核对",
+                "核对方式": "官方公告附件逐条核对",
+                "核对人": "audit",
+                "核对日期": AUDIT_DATE,
+                "核对批次": AUDIT_BATCH,
+                "原文摘录": f"{addition['清单编码']} {addition['清单名称']} {addition['计量单位']}",
+                "证据ID": f"EV-BOQ-{addition['清单编码']}",
+            }
+        )
+        out.append(addition)
     out.sort(key=lambda r: r["清单编码"])
     for i, record in enumerate(out, 1):
         record["序号"] = str(i)
     return out
 
 
-def load_seed_codes() -> set[str]:
-    if not SEED_PATH.exists():
-        return set()
-    with SEED_PATH.open(encoding="utf-8-sig", newline="") as fh:
-        return {row["清单编码"].strip() for row in csv.DictReader(fh) if row.get("清单编码")}
+def load_preserved(path: Path | None) -> dict[str, dict[str, str]]:
+    """按清单编码保留已有主表中的核对结论和原文页码。"""
+    if path is None or not path.exists():
+        return {}
+    raw = path.read_bytes()
+    for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise SystemExit(f"无法解码已有主表：{path}")
+    rows = list(csv.DictReader(text.splitlines()))
+    if not rows:
+        return {}
+    kept: dict[str, dict[str, str]] = {}
+    for row in rows:
+        code = (row.get("清单编码") or "").strip()
+        if not code:
+            continue
+        kept[code] = {
+            key: (row.get(key) or "").strip()
+            for key in VERIFY_FIELDS
+            if (row.get(key) or "").strip()
+        }
+    return kept
 
 
 def main() -> int:
+    base = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--html", type=Path, required=True, help="GB/T 50854-2024 全文 HTML")
-    parser.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "data" / "boq_2024_jiangsu_index.csv")
-    parser.add_argument("--seed", type=Path, default=Path(__file__).resolve().parent.parent / "data" / "boq_2024_jiangsu.csv")
+    parser.add_argument("--out", type=Path, default=base / "data" / "boq_2024_jiangsu.csv", help="输出清单主表")
+    parser.add_argument(
+        "--preserve-from",
+        type=Path,
+        default=base / "data" / "boq_2024_jiangsu.csv",
+        help="从该主表按清单编码继承核对状态/原文页码",
+    )
+    parser.add_argument("--no-preserve", action="store_true", help="不继承已有核对结论")
     args = parser.parse_args()
 
-    global SEED_CODES, SEED_PATH
-    SEED_PATH = args.seed
-    SEED_CODES = load_seed_codes()
     rows = build(args.html)
+    preserved = {} if args.no_preserve else load_preserved(args.preserve_from)
+    for record in rows:
+        for key, value in preserved.get(record["清单编码"], {}).items():
+            record[key] = value
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
 
-    counts = Counter(r["名称质量"] for r in rows)
+    status = Counter(r["核对状态"] for r in rows)
     print(f"写入 {args.out}：{len(rows)} 条")
-    print("质量分层：" + "，".join(f"{k} {v}" for k, v in counts.items()))
+    print("核对状态：" + "，".join(f"{k} {v}" for k, v in status.items()))
     print(f"国标编码 {sum(1 for r in rows if r['数据来源'] == 'GB/T 50854-2024')} 条；江苏增补 {len(JIANGSU_ADDITIONS)} 条")
     nine_digit = sum(1 for r in rows if re.fullmatch(r"\d{9}", r["清单编码"]))
     print(f"唯一编码 {len({r['清单编码'] for r in rows})} 条；9位编码 {nine_digit} 条")
+    missing_page = [r["清单编码"] for r in rows if not r["原文页码"]]
+    if missing_page:
+        print(f"缺少原文页码 {len(missing_page)} 条：{', '.join(missing_page)}")
     return 0
 
 

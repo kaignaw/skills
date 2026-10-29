@@ -67,24 +67,22 @@ python3 scripts/extract_dxf.py 工程做法明细.dxf -o work/dxf \
 ### 4.1 查询清单编码
 
 ```bash
-# 26 条已核对种子库：本项目已核对，可直接用于成果
+# 477 条清单主表：查编码、名称、单位、附录/节、核对状态
 python3 scripts/lookup.py boq 屋面
-
-# 477 条全量索引：查编码、名称、单位、附录/节
-python3 scripts/lookup.py boqindex 屋面
-python3 scripts/lookup.py boqindex 保温 --chapter 附录K
-python3 scripts/lookup.py boqindex --unit m2 --limit 20
-python3 scripts/lookup.py boqindex 011101001 --json
+python3 scripts/lookup.py boq 保温 --chapter 附录K
+python3 scripts/lookup.py boq --unit m2 --limit 20
+python3 scripts/lookup.py boq --status 已核对
+python3 scripts/lookup.py boq 011101001 --json
 ```
 
-`boqindex` 覆盖 GB/T 50854-2024 的 472 条 + 江苏〔2025〕第 12 号公告增补的 5 条，共 477 条。其中 26 条标“已核对”，446 条标“国标提取”，5 条标“江苏增补（已核对）”。
+`boq` 覆盖 GB/T 50854-2024 的 472 条 + 江苏〔2025〕第 12 号公告增补的 5 条，共 477 条，其中 31 条 `已核对`、446 条 `待核对`；`boqindex` 是旧文档中的别名，指向同一张主表。
 
 推荐顺序：
 
-1. 先用 `boqindex` 按关键词、附录、单位找候选编码；
-2. 如果候选在 `boq` 的 26 条种子库中，直接用种子库名称/单位，并按项目特征复核；
-3. 如果只在全量索引中，名称、单位、编码可用，项目特征和计算规则要结合图纸复核；正式成果引用标准原文时，按 `references/sources.md` 的官方链接回查；
-4. 全量索引也没有时，写“待查 GB/T 50854-2024 附录×”，不要编编码。
+1. 先用 `boq` 按关键词、附录、单位找候选编码；
+2. 候选为 `已核对` 时，直接使用主表名称/单位，并按项目特征复核；
+3. 候选为 `待核对` 时，名称、单位、编码可作参考，但必须按 `原文页码` 回查官方 PDF 的项目特征和计算规则，再决定是否采用；
+4. 主表也没有时，写“待查 GB/T 50854-2024 附录×”，不要编编码。
 
 江苏增补的 5 条只在江苏 2024 清单口径使用：`010103003 建筑垃圾外运`、`011601016 按质论价`、`011601017 建筑工人实名制`、`011601018 特殊施工降效`、`011601019 协管`。不要把它们写成国标项目。
 
@@ -121,12 +119,21 @@ python3 scripts/lookup.py boqindex 011101001 --json
 - 基层类型；
 - 是否包含骨架、找平、防护等。
 
-示例：
+**一条特征一行，用 `；` 分隔，不写序号**。`build_xlsx.py` 生成成果时会自动拆行并加 `1.` `2.` `3.` 序号；CSV 里已经手写了 `1.`/`1、` 也不会重复编号（会先去掉旧序号再加），需要原样输出时用 `--no-feature-numbering`。
+
+示例（CSV 写法）：
 
 ```
-保温隔热方式及材料名称：现浇找坡层·水泥粉煤灰页岩陶粒混凝土；
-保温隔热材料规格、性能、厚度：平均厚40mm、坡度2%；
-隔汽层：无；防护材料：无
+保温隔热方式及材料名称：现浇找坡层·水泥粉煤灰页岩陶粒混凝土；保温隔热材料规格、性能、厚度：平均厚40mm、坡度2%；隔汽层：无；防护材料：无
+```
+
+成果 xlsx 中的显示：
+
+```
+1.保温隔热方式及材料名称：现浇找坡层·水泥粉煤灰页岩陶粒混凝土
+2.保温隔热材料规格、性能、厚度：平均厚40mm、坡度2%
+3.隔汽层：无
+4.防护材料：无
 ```
 
 ## 5. 定额匹配
@@ -134,25 +141,22 @@ python3 scripts/lookup.py boqindex 011101001 --json
 ### 5.1 查询
 
 ```bash
-# 59 条已核对种子库：可直接用于成果
+# 3133 条定额主表：按关键词、章、单位、核对状态找候选
 python3 scripts/lookup.py quota 找平 --chapter 第十二章
 python3 scripts/lookup.py quota 干挂 --unit 10m²
 python3 scripts/lookup.py quota 吊筋
-
-# 3115 条全量索引：用于找候选编号和页码
-python3 scripts/lookup.py index 保温
-python3 scripts/lookup.py index 干挂 --chapter 第十三章
-python3 scripts/lookup.py index 10-61 --json
+python3 scripts/lookup.py quota 保温
+python3 scripts/lookup.py quota 10-61 --json
 ```
 
-内置 `quota_2026_jiangsu_seed.csv` 只有 59 条，是样本项目实际引用并核对过的子目。`quota_2026_jiangsu_index.csv` 覆盖 3115 个唯一编号，但其中 3056 条名称是自动提取，不能直接当标准名称。
+主表覆盖 3133 个唯一编号，全部为 `已核对`：77 条历史人工复核，3056 条按官方 PDF 表格线逐列还原表头比对。核对结论只覆盖“编号 + 页码 + 名称层级”，构造、工作内容仍需按 `页码` 回查。
 
 推荐顺序：
 
-1. 先用 `lookup.py index` 按关键词、章、单位找候选；
-2. 如果候选在 `quota` 的 59 条种子库中，直接用种子库名称/单位；
-3. 如果只在索引中，按索引的 `页码` 跳到 PDF 物理页，核对名称、单位、工作内容和构造；
-4. 索引和种子库都查不到时，看 `references/mapping_rules.md` 是否有同类做法，再按 2026 消耗量章节人工查；
+1. 先用 `quota` 按关键词、章、单位找候选；
+2. 候选为 `已核对` 时，直接用主表名称/单位；
+3. 候选为 `待核对`（正常应为 0 条）时，按 `页码` 跳到 PDF 物理页，核对名称、单位、工作内容和构造；
+4. 主表也查不到时，看 `references/mapping_rules.md` 是否有同类做法，再按 2026 消耗量章节人工查；
 5. 仍查不到就写“待查 2026 消耗量 第×章”，不要编。
 
 ### 5.2 一个清单多个定额
@@ -237,31 +241,19 @@ python3 scripts/lookup.py index 10-61 --json
 python3 scripts/validate_mapping.py work/清单定额套用.csv
 ```
 
-校验脚本会把清单编码分成三类：在 26 条种子库、只在 477 条全量索引、全量索引也没有；定额编号分成三类：在 59 条种子库、只在 3115 条索引、索引也没有。只在全量索引中的编码会给出警告，需要按项目特征复核。
+校验脚本会读取两张主表的 `核对状态`：编码不在主表中、或该行仍为 `待核对`，都会给出警告并附原文页码，需要按项目特征复核。
 
-如果要在成果 xlsx 的“清单库”工作表里放全量索引，而不是 26 条种子库：
-
-```bash
-python3 scripts/build_xlsx.py \
-  --mapping work/清单定额套用.csv \
-  --boq data/boq_2024_jiangsu_index.csv \
-  --quota data/quota_2026_jiangsu_seed.csv \
-  -o 成果/装饰工程清单与定额套用表_全量清单版.xlsx
-```
-
-此时编制说明会自动注明“477 条全量索引，其中 26 条已核对，其余为国标提取”。
-
-再生成：
+`build_xlsx.py` 默认读取两张主表，并把覆盖率写进“编制依据与说明”：
 
 ```bash
 python3 scripts/build_xlsx.py \
   --mapping work/清单定额套用.csv \
-  --boq data/boq_2024_jiangsu.csv \
-  --quota data/quota_2026_jiangsu_seed.csv \
   --dxf work/dxf/dxf_text.csv \
   --notes work/编制依据.md \
   -o 成果/装饰工程清单与定额套用表.xlsx
 ```
+
+如需只放某个子集，可用 `--boq` / `--quota` 指向自建 CSV，但仍应保留 `核对状态` 列，便于追溯。
 
 `--notes` 格式：
 
@@ -280,12 +272,12 @@ python3 scripts/build_xlsx.py \
 - [ ] 每个分部、每个做法编号都出现在主表里。
 - [ ] 每个做法层都有“清单归属 + 定额归属 + 备注”三件事。
 - [ ] 同一清单组首行有清单编码，续行清单字段为空。
-- [ ] 26 条种子库内的清单名称、编码、单位与 `boq_2024_jiangsu.csv` 一致；只在 `boq_2024_jiangsu_index.csv` 中的编码，已按项目特征复核。
-- [ ] 定额编号、名称、单位与 `quota_2026_jiangsu_seed.csv` 一致；只在索引中的子目，已按索引页码回查原文。
+- [ ] 清单名称、编码、单位与 `boq_2024_jiangsu.csv` 一致；`待核对` 条目已按 `原文页码` 复核。
+- [ ] 定额编号、名称、单位与 `quota_2026_jiangsu.csv` 一致；`待核对` 子目已按页码回查原文。
 - [ ] 厚度调整次数按 5mm/0.5mm 步距算对。
 - [ ] 所有“类推、换算、无对应、图纸残缺”都进入备注和编制说明。
 - [ ] xlsx 五张表存在，表头、冻结窗格、筛选正常。
 - [ ] 结构层已标注“结构专业，仅供建模对照”，没有混入装饰清单。
 - [ ] 没有把 `10-61`（m³）和 `10-42`（10m²）混用。
-- [ ] 没有把 `quota_2026_jiangsu_index.csv` 的“自动提取”名称直接写进成果。
-- [ ] 没有把 `boq_2024_jiangsu_index.csv` 的“国标提取”文本当成逐字官方原文；江苏增补 5 条没有标成国标项目。
+- [ ] 没有把主表 `待核对` 名称直接写进成果。
+- [ ] 没有把 `待核对` 的项目特征和计算规则当成逐字官方原文；江苏增补 5 条没有标成国标项目。

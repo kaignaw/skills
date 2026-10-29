@@ -8,12 +8,15 @@ Checks that are always errors:
   * inconsistent bill fields inside one group
 
 Checks that are warnings (unless --strict):
-  * a bill code that is not in the 26-row verified seed library
-  * a bill code that is not even in the 477-row full BOQ index
-  * a quota code that is not in the 59-row verified seed library
-  * a quota code that is not even in the 3115-row full index
+  * a bill code that is not in the 477-row BOQ master table
+  * a quota code that is not in the 3133-row quota master table
+  * a code that exists but is still marked "待核对" in the master table
   * a missing quota unit
   * a row with no quota at all
+
+Both master tables carry a 核对状态 column.  A code found in the table is not
+automatically trusted: until the row is marked 已核对, the mapped name/unit must
+be re-checked against 原文页码 before formal use.
 
 Usage:
   python3 scripts/validate_mapping.py work/清单定额套用.csv
@@ -23,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 import json
 import re
 import sys
@@ -61,30 +65,48 @@ def read_rows(path: Path) -> tuple[list[str], list[list[str]]]:
     return rows[0], rows[1:]
 
 
-def load_codes(path: Path, col: str) -> set[str]:
+def load_entries(path: Path, col: str) -> dict[str, dict[str, str]]:
     headers, rows = read_rows(path)
     if not rows:
-        return set()
+        return {}
     idx = headers.index(col) if col in headers else 0
-    return {str(row[idx]).strip() for row in rows if len(row) > idx and str(row[idx]).strip()}
+    status_idx = headers.index("核对状态") if "核对状态" in headers else None
+    page_col = "原文页码" if "原文页码" in headers else ("页码" if "页码" in headers else None)
+    page_idx = headers.index(page_col) if page_col else None
+    entries: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if len(row) <= idx:
+            continue
+        code = str(row[idx]).strip()
+        if not code:
+            continue
+        entries[code] = {
+            "核对状态": str(row[status_idx]).strip() if status_idx is not None and len(row) > status_idx else "",
+            "页码": str(row[page_idx]).strip() if page_idx is not None and len(row) > page_idx else "",
+        }
+    return entries
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     base = Path(__file__).resolve().parent.parent
-    parser.add_argument("mapping", type=Path, help="清单定额套用 CSV/JSON")
-    parser.add_argument("--boq", type=Path, default=base / "data/boq_2024_jiangsu.csv")
-    parser.add_argument("--boq-index", type=Path, default=base / "data/boq_2024_jiangsu_index.csv")
-    parser.add_argument("--quota", type=Path, default=base / "data/quota_2026_jiangsu_seed.csv")
-    parser.add_argument("--index", type=Path, default=base / "data/quota_2026_jiangsu_index.csv")
+    parser.add_argument("mapping", type=Path, nargs="?", help="清单定额套用 CSV/JSON")
+    parser.add_argument("--print-header", action="store_true", help="只打印标准 20 列表头（可直接复制到 CSV）")
+    parser.add_argument("--boq", type=Path, default=base / "data/boq_2024_jiangsu.csv", help="清单主表")
+    parser.add_argument("--quota", type=Path, default=base / "data/quota_2026_jiangsu.csv", help="定额主表")
     parser.add_argument("--strict", action="store_true", help="把警告也视为失败")
     args = parser.parse_args()
 
+    if args.print_header:
+        print(",".join(HEADERS))
+        print(f"# 共 {len(HEADERS)} 列；第 20 列为“套用说明 / 备注”（斜杠两侧必须留空格）", file=sys.stderr)
+        return 0
+    if args.mapping is None:
+        parser.error("需要给出 mapping 路径，或使用 --print-header")
+
     headers, rows = read_rows(args.mapping)
-    boq_codes = load_codes(args.boq, "清单编码")
-    boq_index_codes = load_codes(args.boq_index, "清单编码") if args.boq_index.exists() else set()
-    quota_codes = load_codes(args.quota, "定额编号")
-    index_codes = load_codes(args.index, "定额编号") if args.index.exists() else set()
+    boq_entries = load_entries(args.boq, "清单编码")
+    quota_entries = load_entries(args.quota, "定额编号")
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -119,16 +141,13 @@ def main() -> int:
         if code:
             if code not in EMPTY_MARKERS and not BILL_CODE_RE.match(code):
                 errors.append(f"第 {i} 行：清单编码格式异常“{code}”。")
-            if code not in EMPTY_MARKERS and code not in boq_codes:
-                if code in boq_index_codes:
-                    warnings.append(
-                        f"第 {i} 行：清单编码 {code} 在 477 条全量清单索引中，"
-                        "但不在 26 条已核对种子库，需核对项目特征和计算规则。"
-                    )
-                else:
-                    warnings.append(
-                        f"第 {i} 行：清单编码 {code} 不在 477 条全量清单索引中，需核对标准原文。"
-                    )
+            if code not in EMPTY_MARKERS and code not in boq_entries:
+                warnings.append(f"第 {i} 行：清单编码 {code} 不在 477 条清单主表中，需核对标准原文。")
+            elif code not in EMPTY_MARKERS and boq_entries[code]["核对状态"] != "已核对":
+                warnings.append(
+                    f"第 {i} 行：清单编码 {code} 在主表中为待核对，需核对项目特征和计算规则"
+                    + (f"（原文页码 {boq_entries[code]['页码']}）。" if boq_entries[code]["页码"] else "。")
+                )
             if not unit:
                 warnings.append(f"第 {i} 行：有清单编码但计量单位为空。")
             group_bill = {"code": code, "name": name, "unit": unit}
@@ -144,16 +163,13 @@ def main() -> int:
         if quota and quota not in EMPTY_MARKERS:
             if not QUOTA_CODE_RE.match(quota):
                 errors.append(f"第 {i} 行：定额编号格式异常“{quota}”。")
-            elif quota not in quota_codes:
-                if quota in index_codes:
-                    warnings.append(
-                        f"第 {i} 行：定额编号 {quota} 在 3115 条全量索引中，"
-                        "但不在 59 条已核对种子库，需按索引页码复核名称和单位。"
-                    )
-                else:
-                    warnings.append(
-                        f"第 {i} 行：定额编号 {quota} 不在 3115 条索引中，需核对消耗量原文。"
-                    )
+            elif quota not in quota_entries:
+                warnings.append(f"第 {i} 行：定额编号 {quota} 不在 3133 条定额主表中，需核对消耗量原文。")
+            elif quota_entries[quota]["核对状态"] != "已核对":
+                warnings.append(
+                    f"第 {i} 行：定额编号 {quota} 在主表中为待核对，需按页码 "
+                    f"{quota_entries[quota]['页码'] or '（缺）'} 复核名称和单位。"
+                )
             if not quota_unit:
                 warnings.append(f"第 {i} 行：定额编号 {quota} 缺少定额计量单位。")
         elif not note:
